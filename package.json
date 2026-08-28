@@ -1,0 +1,9 @@
+{
+  "name": "dagaz-hub-shop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DAGAZ HUB // SHOP — site marchand avec comptes Supabase et paiement Stripe",
+  "dependencies": {
+    "stripe": "^17.0.0"
+  }
+}
