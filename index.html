@@ -6,7 +6,6 @@
 <title>DAGAZ HUB // Terminal Marchand</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --void:#05070c;
@@ -116,16 +115,6 @@
     background:var(--text-dim);box-shadow:none;transition:all .3s;
   }
   .account-dot.online{background:var(--green);box-shadow:0 0 8px var(--green),0 0 16px var(--green);}
-
-  .auth-tabs{display:flex;gap:4px;margin-bottom:22px;border:1px solid var(--line);border-radius:var(--radius);padding:4px;}
-  .auth-tab{
-    flex:1;background:none;border:none;color:var(--text-dim);padding:10px;border-radius:2px;
-    font-family:'Orbitron';font-size:11px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;
-    transition:background .2s, color .2s;
-  }
-  .auth-tab.active{background:var(--cyan);color:#03131a;font-weight:700;}
-  .field-error{color:var(--magenta);font-size:12px;margin-top:8px;display:none;}
-  .field-error.show{display:block;}
 
   /* ---------- Hero ---------- */
   .hero{
@@ -479,7 +468,7 @@
     </div>
     <div class="features">
       <div class="feature"><div class="icon">◈</div><h3>Livraison rapide</h3><p>Suivi en temps réel dès la mise en ligne des premiers articles.</p></div>
-      <div class="feature"><div class="icon">◆</div><h3>Paiement sécurisé</h3><p>Paiement traité par Stripe : vos coordonnées bancaires ne transitent jamais par nos serveurs.</p></div>
+      <div class="feature"><div class="icon">◆</div><h3>Paiement sécurisé</h3><p>Formulaire de paiement chiffré, prêt à être branché à un vrai prestataire.</p></div>
       <div class="feature"><div class="icon">◇</div><h3>Support 24/7</h3><p>Une équipe disponible pour répondre à toute question sur une commande.</p></div>
     </div>
   </section>
@@ -488,7 +477,7 @@
     <div class="test-cta">
       <div>
         <h3>Tester le système de paiement</h3>
-        <p>Aucun produit n'est encore en vente. Ajoutez un article de démonstration au panier pour vérifier que tout le circuit — compte, panier, paiement Stripe, confirmation — fonctionne correctement.</p>
+        <p>Aucun produit n'est encore en vente. Ajoutez un article de démonstration au panier pour vérifier que tout le circuit — panier, paiement, confirmation — fonctionne correctement.</p>
       </div>
       <button class="btn btn-primary" id="addDemo" data-sfx="add">Ajouter un article démo</button>
     </div>
@@ -497,7 +486,7 @@
 
 <footer>
   <div>© 2026 DAGAZ HUB//SHOP — Terminal marchand</div>
-  <div>Paiements sécurisés par Stripe</div>
+  <div>Démo front-end — aucun paiement réel n'est traité</div>
 </footer>
 
 <!-- Cart overlay + drawer -->
@@ -670,64 +659,40 @@ function addToCart(product){
 
 /* Article de démonstration, pour vérifier le circuit de paiement
    avant l'arrivée des vrais produits.
-   requireAuth() impose la connexion avant tout ajout. */
+   requireAuth() impose la connexion par e-mail avant tout ajout. */
 document.getElementById('addDemo').addEventListener('click', ()=>{
   requireAuth(()=> addToCart({ id:'demo-item', name:'Article de démonstration', price:19.99, icon:'⬡' }));
 });
 
 /* =========================================================
-   COMPTE — vrais comptes utilisateurs via Supabase Auth
-   + panier synchronisé dans une vraie base de données
-   (au lieu du localStorage : le panier suit la personne
-   même si elle change d'appareil).
-
-   ⚠️ À REMPLIR avant mise en ligne : créez un projet gratuit
-   sur https://supabase.com puis collez son URL et sa clé
-   "anon public" ci-dessous (Project Settings → API).
+   COMPTE — connexion par e-mail + sauvegarde du panier
+   Le panier est stocké dans le localStorage du navigateur,
+   associé à l'adresse e-mail : il persiste même si la
+   personne ferme le site ou l'onglet.
 ========================================================= */
-const SUPABASE_URL = 'https://fmaofdnljfivqbrtrpsp.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZtYW9mZG5samZpdnFicnRycHNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4OTg1NzUsImV4cCI6MjEwMzQ3NDU3NX0.-fEcYn17yTpV6KzjauCZUbGOrmJdMRPVblzKTEdWrDY';
-
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-let currentUser = null;   // objet utilisateur Supabase une fois connecté
+const AUTH_KEY = 'dagaz_user_email';
+let currentUser = localStorage.getItem(AUTH_KEY) || null;
 let pendingAction = null;
-let authMode = 'login';   // 'login' ou 'signup'
 
-function cartRowKey(){ return currentUser ? currentUser.id : null; }
+function cartKey(email){ return 'dagaz_cart_' + email; }
 
-async function saveCart(){
+function saveCart(){
   if(!currentUser) return;
-  try{
-    await supabase.from('carts').upsert({
-      user_id: currentUser.id,
-      items: CART,
-      updated_at: new Date().toISOString()
-    });
-  }catch(e){ console.error('Erreur de sauvegarde du panier :', e); }
+  try{ localStorage.setItem(cartKey(currentUser), JSON.stringify(CART)); }catch(e){}
 }
 
-async function loadCartForUser(){
+function loadCartFor(email){
   try{
-    const { data, error } = await supabase
-      .from('carts')
-      .select('items')
-      .eq('user_id', currentUser.id)
-      .maybeSingle();
-    if(error) throw error;
-    CART = (data && data.items) ? data.items : [];
-  }catch(e){
-    console.error('Erreur de chargement du panier :', e);
-    CART = [];
-  }
-  renderCart();
+    const raw = localStorage.getItem(cartKey(email));
+    CART = raw ? JSON.parse(raw) : [];
+  }catch(e){ CART = []; }
 }
 
 function updateAccountUI(){
   const label = document.getElementById('accountLabel');
   const dot = document.getElementById('accountDot');
   if(currentUser){
-    label.textContent = currentUser.email;
+    label.textContent = currentUser;
     dot.classList.add('online');
   } else {
     label.textContent = 'Se connecter';
@@ -740,26 +705,16 @@ const authModalBg = document.getElementById('authModalBg');
 const authModalContent = document.getElementById('authModalContent');
 
 function authFormHTML(){
-  const isLogin = authMode === 'login';
   return `
-    <h3>${isLogin ? 'Connexion' : 'Créer un compte'}</h3>
-    <p class="modal-sub">${isLogin ? 'Connectez-vous pour retrouver votre panier.' : "Votre panier sera sauvegardé sur votre compte, accessible depuis n'importe quel appareil."}</p>
-    <div class="auth-tabs">
-      <button type="button" class="auth-tab ${isLogin?'active':''}" data-mode="login">Se connecter</button>
-      <button type="button" class="auth-tab ${!isLogin?'active':''}" data-mode="signup">Créer un compte</button>
-    </div>
+    <h3>Connexion requise</h3>
+    <p class="modal-sub">Connectez-vous avec votre adresse e-mail pour ajouter des articles au panier. Votre panier sera automatiquement sauvegardé et retrouvé à votre prochaine visite.</p>
     <form id="authForm" novalidate>
       <div class="field">
         <label>Adresse e-mail</label>
         <input type="email" id="authEmail" placeholder="vous@exemple.com" autocomplete="email" required>
       </div>
-      <div class="field">
-        <label>Mot de passe</label>
-        <input type="password" id="authPassword" placeholder="••••••••" minlength="6" autocomplete="${isLogin?'current-password':'new-password'}" required>
-      </div>
-      <div class="field-error" id="authError"></div>
-      <button type="submit" class="pay-btn" id="authSubmit">${isLogin ? 'Se connecter' : 'Créer mon compte'}</button>
-      <p class="pay-note">${isLogin ? 'Mot de passe oublié ? Contactez le support pour le moment.' : 'Un e-mail de confirmation peut vous être envoyé selon la configuration du projet.'}</p>
+      <button type="submit" class="pay-btn">Se connecter</button>
+      <p class="pay-note">Aucun e-mail n'est envoyé : cette adresse sert uniquement à identifier votre panier sur cet appareil. Pour un vrai système de comptes, il faudra un backend avec vérification par e-mail.</p>
     </form>
   `;
 }
@@ -767,83 +722,40 @@ function authFormHTML(){
 function openAuthModal(){
   authModalContent.innerHTML = authFormHTML();
   authModalWrap.classList.add('show');
-  wireAuthForm();
+  document.getElementById('authForm').addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const input = document.getElementById('authEmail');
+    const email = input.value.trim().toLowerCase();
+    const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if(!valid){
+      SFX.error();
+      showToast('Adresse e-mail invalide', true);
+      input.style.borderColor = 'var(--magenta)';
+      return;
+    }
+    currentUser = email;
+    localStorage.setItem(AUTH_KEY, email);
+    loadCartFor(email);
+    renderCart();
+    updateAccountUI();
+    closeAuthModal();
+    SFX.success();
+    showToast(`Connecté — panier de ${email} restauré`);
+    if(pendingAction){ const a = pendingAction; pendingAction = null; a(); }
+  });
 }
 function closeAuthModal(){ authModalWrap.classList.remove('show'); pendingAction = null; }
 authModalBg.addEventListener('click', closeAuthModal);
 
-function wireAuthForm(){
-  authModalContent.querySelectorAll('.auth-tab').forEach(tab=>{
-    tab.addEventListener('click', ()=>{
-      authMode = tab.dataset.mode;
-      authModalContent.innerHTML = authFormHTML();
-      wireAuthForm();
-    });
-  });
-
-  document.getElementById('authForm').addEventListener('submit', async (e)=>{
-    e.preventDefault();
-    const email = document.getElementById('authEmail').value.trim().toLowerCase();
-    const password = document.getElementById('authPassword').value;
-    const errorEl = document.getElementById('authError');
-    const submitBtn = document.getElementById('authSubmit');
-    errorEl.classList.remove('show');
-
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 6){
-      errorEl.textContent = 'Adresse e-mail invalide ou mot de passe trop court (6 caractères min.).';
-      errorEl.classList.add('show');
-      SFX.error();
-      return;
-    }
-
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<span class="spinner"></span> Patientez…';
-
-    try{
-      let result;
-      if(authMode === 'signup'){
-        result = await supabase.auth.signUp({ email, password });
-      } else {
-        result = await supabase.auth.signInWithPassword({ email, password });
-      }
-      if(result.error) throw result.error;
-
-      if(authMode === 'signup' && !result.data.session){
-        /* Confirmation par e-mail activée sur le projet Supabase */
-        SFX.success();
-        showToast('Compte créé — vérifiez vos e-mails pour confirmer');
-        closeAuthModal();
-        return;
-      }
-
-      currentUser = result.data.user;
-      await loadCartForUser();
-      updateAccountUI();
-      closeAuthModal();
-      SFX.success();
-      showToast(authMode === 'signup' ? 'Compte créé et connecté' : 'Connecté');
-      if(pendingAction){ const a = pendingAction; pendingAction = null; a(); }
-    }catch(err){
-      errorEl.textContent = err.message || 'Une erreur est survenue.';
-      errorEl.classList.add('show');
-      SFX.error();
-    }finally{
-      submitBtn.disabled = false;
-      submitBtn.textContent = authMode === 'login' ? 'Se connecter' : 'Créer mon compte';
-    }
-  });
-}
-
 function requireAuth(action){
   if(currentUser){ action(); return; }
   pendingAction = action;
-  authMode = 'login';
   openAuthModal();
 }
 
-async function logout(){
-  await supabase.auth.signOut();
+function logout(){
   currentUser = null;
+  localStorage.removeItem(AUTH_KEY);
   CART = [];
   renderCart();
   updateAccountUI();
@@ -852,20 +764,13 @@ async function logout(){
 }
 
 document.getElementById('accountBtn').addEventListener('click', ()=>{
-  if(currentUser){ logout(); } else { authMode = 'login'; openAuthModal(); }
+  if(currentUser){ logout(); } else { openAuthModal(); }
 });
 
-/* Au chargement : si une session Supabase existe déjà (cookie/stockage
-   géré par la librairie), on reconnecte automatiquement et on
-   recharge le panier depuis la base de données. */
-(async function initSession(){
-  const { data } = await supabase.auth.getSession();
-  if(data.session){
-    currentUser = data.session.user;
-    await loadCartForUser();
-  }
-  updateAccountUI();
-})();
+/* Au chargement : si un e-mail est déjà connu, on restaure son panier */
+if(currentUser){ loadCartFor(currentUser); }
+renderCart();
+updateAccountUI();
 
 /* =========================================================
    DRAWER PANIER — ouverture / fermeture
@@ -879,97 +784,117 @@ document.getElementById('closeCart').addEventListener('click', closeDrawer);
 overlay.addEventListener('click', closeDrawer);
 
 /* =========================================================
-   CHECKOUT — vrai paiement via Stripe Checkout
-
-   Le paiement lui-même se passe entièrement sur une page
-   sécurisée hébergée par Stripe (jamais sur ce site) : le
-   numéro de carte ne transite jamais par notre code. La
-   session de paiement est créée par une fonction serveur
-   (netlify/functions/create-checkout-session.js) qui utilise
-   votre clé secrète Stripe — jamais exposée ici.
+   CHECKOUT — formulaire de paiement (simulation front-end)
 ========================================================= */
 const modalWrap = document.getElementById('modalWrap');
 const modalBg = document.getElementById('modalBg');
 const modalContent = document.getElementById('modalContent');
 
-function checkoutSummaryHTML(){
+function checkoutFormHTML(){
   const total = CART.reduce((s,i)=>s+i.price*i.qty,0);
   return `
-    <h3>Récapitulatif de commande</h3>
-    <p class="modal-sub">Vous allez être redirigé vers une page de paiement sécurisée Stripe.</p>
-    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
-      ${CART.map(i => `
-        <div style="display:flex;justify-content:space-between;font-size:14px;color:var(--text-dim);">
-          <span>${i.name} ${i.qty>1 ? '× '+i.qty : ''}</span>
-          <span style="color:var(--text)">${fmt(i.price*i.qty)}</span>
+    <h3>Paiement sécurisé</h3>
+    <p class="modal-sub">Total à régler : <strong style="color:var(--cyan)">${fmt(total)}</strong></p>
+
+    <div class="card-visual">
+      <div class="row"><span>Carte DAGAZ</span><span>DÉMO</span></div>
+      <div class="chip"></div>
+      <div class="num" id="cardPreviewNum">•••• •••• •••• ••••</div>
+      <div class="row"><span id="cardPreviewName">NOM PRÉNOM</span><span id="cardPreviewExp">MM/AA</span></div>
+    </div>
+
+    <form id="payForm" novalidate>
+      <div class="field">
+        <label>Nom du titulaire</label>
+        <input type="text" id="holder" placeholder="J. DURAND" autocomplete="cc-name" required>
+      </div>
+      <div class="field">
+        <label>Numéro de carte</label>
+        <input type="text" id="cardNumber" placeholder="0000 0000 0000 0000" inputmode="numeric" maxlength="19" autocomplete="cc-number" required>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Expiration</label>
+          <input type="text" id="expiry" placeholder="MM/AA" maxlength="5" autocomplete="cc-exp" required>
         </div>
-      `).join('')}
-    </div>
-    <div class="total-row" style="border-top:1px solid var(--line);padding-top:14px;">
-      <span>Total</span><span class="amount">${fmt(total)}</span>
-    </div>
-    <button class="pay-btn" id="stripeGo" style="margin-top:18px;">Payer ${fmt(total)} avec Stripe</button>
-    <div class="field-error" id="checkoutError"></div>
-    <p class="pay-note">Paiement 100% sécurisé traité par Stripe. DAGAZ HUB ne stocke ni ne voit jamais votre numéro de carte.</p>
+        <div class="field">
+          <label>CVV</label>
+          <input type="text" id="cvv" placeholder="123" maxlength="3" inputmode="numeric" autocomplete="cc-csc" required>
+        </div>
+      </div>
+      <button type="submit" class="pay-btn" id="submitPay">Confirmer le paiement — ${fmt(total)}</button>
+      <p class="pay-note">Simulation front-end : aucune donnée n'est envoyée à une banque. Pour un paiement réel, connectez ce formulaire à un prestataire (Stripe, PayPal, etc.) côté serveur.</p>
+    </form>
   `;
 }
 
 function openCheckout(){
   if(CART.length===0) return;
-  modalContent.innerHTML = checkoutSummaryHTML();
+  modalContent.innerHTML = checkoutFormHTML();
   modalWrap.classList.add('show');
-  document.getElementById('stripeGo').addEventListener('click', startStripeCheckout);
+  wireCheckoutForm();
 }
 function closeCheckout(){ modalWrap.classList.remove('show'); }
 goCheckout.addEventListener('click', ()=>{ closeDrawer(); openCheckout(); });
 modalBg.addEventListener('click', closeCheckout);
 
-async function startStripeCheckout(){
-  const btn = document.getElementById('stripeGo');
-  const errorEl = document.getElementById('checkoutError');
-  errorEl.classList.remove('show');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Redirection en cours…';
-  try{
-    const res = await fetch('/.netlify/functions/create-checkout-session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        items: CART.map(i => ({ name: i.name, price: i.price, qty: i.qty })),
-        email: currentUser ? currentUser.email : undefined
-      })
-    });
-    const data = await res.json();
-    if(!res.ok || !data.url) throw new Error(data.error || 'Impossible de créer la session de paiement.');
-    window.location.href = data.url; // redirection vers la page Stripe
-  }catch(err){
-    SFX.error();
-    errorEl.textContent = err.message;
-    errorEl.classList.add('show');
-    btn.disabled = false;
-    btn.textContent = 'Réessayer';
-  }
+function wireCheckoutForm(){
+  const cardNumber = document.getElementById('cardNumber');
+  const expiry = document.getElementById('expiry');
+  const cvv = document.getElementById('cvv');
+  const holder = document.getElementById('holder');
+  const previewNum = document.getElementById('cardPreviewNum');
+  const previewName = document.getElementById('cardPreviewName');
+  const previewExp = document.getElementById('cardPreviewExp');
+
+  cardNumber.addEventListener('input', ()=>{
+    let v = cardNumber.value.replace(/\D/g,'').slice(0,16);
+    cardNumber.value = v.replace(/(.{4})/g,'$1 ').trim();
+    previewNum.textContent = (v.padEnd(16,'•')).replace(/(.{4})/g,'$1 ').trim();
+  });
+  holder.addEventListener('input', ()=>{ previewName.textContent = holder.value.toUpperCase() || 'NOM PRÉNOM'; });
+  expiry.addEventListener('input', ()=>{
+    let v = expiry.value.replace(/\D/g,'').slice(0,4);
+    if(v.length>=3) v = v.slice(0,2)+'/'+v.slice(2);
+    expiry.value = v;
+    previewExp.textContent = v || 'MM/AA';
+  });
+  cvv.addEventListener('input', ()=>{ cvv.value = cvv.value.replace(/\D/g,'').slice(0,3); });
+
+  document.getElementById('payForm').addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const valid = cardNumber.value.replace(/\D/g,'').length===16
+               && /^\d{2}\/\d{2}$/.test(expiry.value)
+               && cvv.value.length===3
+               && holder.value.trim().length>1;
+    if(!valid){
+      SFX.error();
+      showToast('Vérifiez les informations de paiement', true);
+      return;
+    }
+    const submitBtn = document.getElementById('submitPay');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner"></span> Traitement en cours…';
+    setTimeout(()=>{ showSuccess(); }, 1400);
+  });
 }
 
-/* Retour depuis Stripe : la page de succès redirige ici avec
-   ?checkout=success (ou ?checkout=cancel si annulé) */
-(function handleStripeRedirect(){
-  const params = new URLSearchParams(window.location.search);
-  const status = params.get('checkout');
-  if(status === 'success'){
-    CART = [];
-    renderCart();
-    saveCart();
-    showToast('Paiement confirmé — merci pour votre commande !');
-  } else if(status === 'cancel'){
-    showToast('Paiement annulé', true);
-  }
-  if(status){
-    params.delete('checkout');
-    const clean = window.location.pathname + (params.toString() ? '?'+params.toString() : '');
-    window.history.replaceState({}, '', clean);
-  }
-})();
+function showSuccess(){
+  const orderId = 'NX-' + Math.random().toString(36).slice(2,8).toUpperCase();
+  modalContent.innerHTML = `
+    <div class="success-view">
+      <div class="success-ring">✓</div>
+      <h3>Paiement confirmé</h3>
+      <p>Ceci est une confirmation de démonstration — aucun débit réel n'a eu lieu.</p>
+      <div class="order-id">COMMANDE ${orderId}</div>
+      <button class="btn btn-primary" id="closeSuccess">Fermer</button>
+    </div>
+  `;
+  SFX.success();
+  CART = [];
+  renderCart();
+  document.getElementById('closeSuccess').addEventListener('click', closeCheckout);
+}
 
 /* =========================================================
    TOAST
