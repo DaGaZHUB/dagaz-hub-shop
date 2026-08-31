@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DAGAZ HUB</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#08090d;
+    --panel: rgba(255,255,255,.04);
+    --panel-solid:#12141c;
+    --border: rgba(255,255,255,.09);
+    --border-hover: rgba(255,255,255,.2);
+    --violet:#8b5cf6;
+    --pink:#ec4899;
+    --blue:#3b82f6;
+    --green:#22d3a5;
+    --discord:#5865F2;
+    --text:#f1f2f6;
+    --text-dim:#8b8fa3;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    font-size:16px;
+    line-height:1.5;
+    overflow-x:hidden;
+  }
+  h1,h2,h3,.logo,button{font-family:'Space Grotesk',sans-serif;}
+
+  /* ---------- Aurora background ---------- */
+  .aurora{
+    position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+  }
+  .aurora::before, .aurora::after{
+    content:'';position:absolute;width:60vw;height:60vw;border-radius:50%;
+    filter:blur(120px);opacity:.28;
+  }
+  .aurora::before{
+    background:var(--violet);top:-20%;left:-10%;
+    animation:drift1 22s ease-in-out infinite alternate;
+  }
+  .aurora::after{
+    background:var(--blue);bottom:-25%;right:-10%;
+    animation:drift2 26s ease-in-out infinite alternate;
+  }
+  @keyframes drift1{0%{transform:translate(0,0) scale(1);}100%{transform:translate(6%,8%) scale(1.15);}}
+  @keyframes drift2{0%{transform:translate(0,0) scale(1);}100%{transform:translate(-8%,-6%) scale(1.1);}}
+  .grain{
+    position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.035;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  main, header, footer{position:relative;z-index:2;}
+
+  /* ---------- Header ---------- */
+  header{
+    position:sticky;top:0;z-index:50;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 40px;
+    background:rgba(8,9,13,.65);
+    backdrop-filter:blur(16px);
+    border-bottom:1px solid var(--border);
+  }
+  .logo{
+    font-weight:700;font-size:20px;color:var(--text);
+    display:flex;align-items:center;gap:10px;letter-spacing:-.02em;
+  }
+  .logo .mark{
+    width:30px;height:30px;border-radius:9px;
+    background:linear-gradient(135deg, var(--violet), var(--pink));
+    display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;
+  }
+
+  nav{display:flex;gap:4px;align-items:center;}
+  nav a{
+    color:var(--text-dim);text-decoration:none;font-size:14px;font-weight:500;
+    padding:9px 16px;border-radius:8px;transition:color .2s, background .2s;
+  }
+  nav a:hover{color:var(--text);background:var(--panel);}
+
+  .header-right{display:flex;align-items:center;gap:10px;}
+
+  .btn-icon{
+    background:var(--panel);border:1px solid var(--border);color:var(--text);
+    padding:10px 16px;border-radius:10px;cursor:pointer;
+    display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;
+    transition:border-color .2s, background .2s;
+  }
+  .btn-icon:hover{border-color:var(--border-hover);background:rgba(255,255,255,.07);}
+  .cart-count{
+    background:var(--pink);color:#fff;border-radius:99px;
+    min-width:19px;height:19px;padding:0 5px;font-size:11px;display:flex;align-items:center;justify-content:center;
+    font-weight:700;
+  }
+
+  .account-btn{
+    background:var(--discord);border:1px solid var(--discord);color:#fff;
+    padding:10px 16px;border-radius:10px;cursor:pointer;
+    display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;
+    transition:filter .2s;
+    max-width:210px;
+  }
+  .account-btn.connected{background:var(--panel);border-color:var(--border);color:var(--text);}
+  .account-btn span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .account-btn:hover{filter:brightness(1.12);}
+  .account-btn.connected:hover{border-color:var(--border-hover);}
+  .account-avatar{width:20px;height:20px;border-radius:50%;flex-shrink:0;}
+  .discord-icon{width:16px;height:16px;flex-shrink:0;}
+
+  /* ---------- Hero ---------- */
+  .hero{
+    min-height:82vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:80px 24px 60px;
+  }
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    color:var(--text-dim);font-size:13px;font-weight:500;margin-bottom:26px;
+    border:1px solid var(--border);padding:8px 16px;border-radius:99px;
+    background:var(--panel);
+  }
+  .eyebrow .dot{width:7px;height:7px;background:var(--green);border-radius:50%;box-shadow:0 0 8px var(--green);animation:pulse 2s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+
+  .hero h1{
+    font-size:clamp(40px, 6.5vw, 84px);font-weight:700;margin:0;line-height:1.04;
+    letter-spacing:-.03em;
+    background:linear-gradient(160deg, #fff 20%, var(--violet) 90%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .hero p.sub{
+    max-width:600px;color:var(--text-dim);font-size:18px;margin:24px 0 36px;
+  }
+  .hero-ctas{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;}
+  .btn{
+    font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;
+    padding:15px 30px;border-radius:11px;cursor:pointer;border:1px solid transparent;
+    transition:all .2s;
+  }
+  .btn-primary{
+    background:linear-gradient(135deg, var(--violet), var(--pink));
+    color:#fff;box-shadow:0 8px 30px -8px rgba(139,92,246,.6);
+  }
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 10px 36px -6px rgba(139,92,246,.7);}
+  .btn-ghost{background:var(--panel);border-color:var(--border);color:var(--text);}
+  .btn-ghost:hover{border-color:var(--border-hover);}
+
+  .hero-stats{display:flex;gap:52px;margin-top:60px;flex-wrap:wrap;justify-content:center;}
+  .hero-stats div{text-align:center;}
+  .hero-stats .num{font-size:26px;font-weight:700;}
+  .hero-stats .lbl{font-size:13px;color:var(--text-dim);margin-top:4px;}
+
+  /* ---------- Sections ---------- */
+  section{padding:100px 6vw;max-width:1360px;margin:0 auto;}
+  .section-head{text-align:center;margin-bottom:52px;}
+  .section-head h2{font-size:clamp(28px,3.6vw,40px);margin:0 0 12px;font-weight:700;letter-spacing:-.02em;}
+  .section-head p{color:var(--text-dim);max-width:540px;margin:0 auto;font-size:16px;}
+
+  /* ---------- Catalogue ---------- */
+  .catalog-grid{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;
+  }
+  .slot{
+    aspect-ratio:1/1.05;border:1px dashed var(--border);border-radius:var(--radius);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+    background:var(--panel);
+    transition:border-color .25s, transform .25s, background .25s;
+  }
+  .slot:hover{border-color:var(--border-hover);transform:translateY(-3px);background:rgba(255,255,255,.06);}
+  .slot .spark{
+    width:44px;height:44px;border-radius:12px;
+    background:linear-gradient(135deg, rgba(139,92,246,.25), rgba(236,72,153,.2));
+    display:flex;align-items:center;justify-content:center;font-size:18px;
+  }
+  .slot .label{font-size:13px;color:var(--text-dim);font-weight:500;}
+
+  .product-card{
+    border:1px solid var(--border);border-radius:var(--radius);
+    background:var(--panel);padding:26px 22px;
+    display:flex;flex-direction:column;gap:14px;
+    transition:border-color .25s, transform .25s, background .25s;
+  }
+  .product-card:hover{border-color:var(--border-hover);transform:translateY(-3px);background:rgba(255,255,255,.06);}
+  .product-card .spark{
+    width:44px;height:44px;border-radius:12px;
+    background:linear-gradient(135deg, rgba(139,92,246,.3), rgba(236,72,153,.25));
+    display:flex;align-items:center;justify-content:center;font-size:19px;
+  }
+  .product-card h3{margin:2px 0 0;font-size:17px;font-weight:700;}
+  .product-card .desc{color:var(--text-dim);font-size:13.5px;margin:0;}
+  .product-card .price-row{display:flex;align-items:baseline;justify-content:space-between;margin-top:4px;}
+  .product-card .price{font-size:22px;font-weight:700;}
+  .product-card .price .usd{font-size:12px;color:var(--text-dim);font-weight:500;margin-left:6px;}
+  .product-card .add-btn{
+    margin-top:6px;width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);
+    background:var(--panel);color:var(--text);font-family:'Space Grotesk';font-weight:600;font-size:13.5px;
+    cursor:pointer;transition:border-color .2s, background .2s;
+  }
+  .product-card .add-btn:hover{border-color:var(--border-hover);background:rgba(255,255,255,.08);}
+  .product-card.featured{border-color:rgba(139,92,246,.4);background:linear-gradient(160deg, rgba(139,92,246,.1), rgba(255,255,255,.03));}
+
+  /* ---------- Features ---------- */
+  .features{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;}
+  .feature{
+    background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+    padding:30px 26px;transition:transform .2s, border-color .2s;
+  }
+  .feature:hover{transform:translateY(-3px);border-color:var(--border-hover);}
+  .feature .icon-wrap{
+    width:42px;height:42px;border-radius:11px;margin-bottom:18px;
+    background:linear-gradient(135deg, var(--violet), var(--blue));
+    display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;
+  }
+  .feature h3{margin:0 0 8px;font-size:16px;font-weight:600;}
+  .feature p{color:var(--text-dim);font-size:14.5px;line-height:1.55;margin:0;}
+
+  /* ---------- Test CTA ---------- */
+  .test-cta{
+    border:1px solid var(--border);border-radius:20px;padding:44px;
+    display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;
+    background:linear-gradient(135deg, rgba(139,92,246,.08), rgba(59,130,246,.05));
+  }
+  .test-cta h3{margin:0 0 8px;font-size:21px;font-weight:700;}
+  .test-cta p{margin:0;color:var(--text-dim);max-width:460px;font-size:14.5px;}
+
+  footer{
+    border-top:1px solid var(--border);padding:32px 6vw;color:var(--text-dim);font-size:13px;
+    display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;
+  }
+
+  /* ---------- Cart drawer ---------- */
+  .overlay{
+    position:fixed;inset:0;background:rgba(3,4,8,.65);backdrop-filter:blur(3px);
+    z-index:90;opacity:0;pointer-events:none;transition:opacity .3s;
+  }
+  .overlay.show{opacity:1;pointer-events:auto;}
+  .drawer{
+    position:fixed;top:0;right:0;height:100%;width:min(420px,92vw);
+    background:var(--panel-solid);border-left:1px solid var(--border);
+    z-index:95;transform:translateX(100%);transition:transform .35s cubic-bezier(.2,.8,.2,1);
+    display:flex;flex-direction:column;
+  }
+  .drawer.show{transform:translateX(0);}
+  .drawer-head{padding:22px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+  .drawer-head h3{margin:0;font-size:16px;font-weight:600;}
+  .icon-btn{background:none;border:none;color:var(--text-dim);font-size:20px;cursor:pointer;line-height:1;}
+  .icon-btn:hover{color:var(--text);}
+  .drawer-body{flex:1;overflow-y:auto;padding:22px 24px;display:flex;flex-direction:column;gap:14px;}
+  .empty-cart{text-align:center;margin-top:60px;color:var(--text-dim);}
+  .empty-cart .spark{width:52px;height:52px;margin:0 auto 20px;font-size:22px;}
+  .cart-item{display:flex;gap:14px;border:1px solid var(--border);border-radius:12px;padding:12px;align-items:center;}
+  .cart-item .thumb{
+    width:48px;height:48px;background:var(--panel);border:1px solid var(--border);border-radius:10px;
+    display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;
+  }
+  .cart-item .info{flex:1;min-width:0;}
+  .cart-item .info .name{font-size:14px;font-weight:600;}
+  .cart-item .info .price{font-size:13px;color:var(--violet);font-weight:600;}
+  .cart-item .rm{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:16px;}
+  .cart-item .rm:hover{color:var(--pink);}
+  .drawer-foot{border-top:1px solid var(--border);padding:20px 24px;}
+  .total-row{display:flex;justify-content:space-between;font-size:15px;margin-bottom:16px;}
+  .total-row .amount{font-weight:700;font-size:19px;}
+
+  /* ---------- Modals ---------- */
+  .modal-wrap{
+    position:fixed;inset:0;z-index:110;display:flex;align-items:center;justify-content:center;
+    opacity:0;pointer-events:none;transition:opacity .3s;padding:20px;
+  }
+  .modal-wrap.show{opacity:1;pointer-events:auto;}
+  .modal-bg{position:absolute;inset:0;background:rgba(3,4,8,.72);backdrop-filter:blur(6px);}
+  .modal{
+    position:relative;background:var(--panel-solid);border:1px solid var(--border);border-radius:18px;
+    width:min(460px,100%);max-height:88vh;overflow-y:auto;padding:32px;
+    box-shadow:0 20px 60px -12px rgba(0,0,0,.6);
+    transform:translateY(14px) scale(.98);transition:transform .3s;
+  }
+  .modal-wrap.show .modal{transform:translateY(0) scale(1);}
+  .modal h3{margin:0 0 6px;font-size:20px;font-weight:700;}
+  .modal .modal-sub{color:var(--text-dim);font-size:13.5px;margin:0 0 24px;}
+  .field-error{color:var(--pink);font-size:12.5px;margin-top:10px;display:none;}
+  .field-error.show{display:block;}
+
+  .discord-login-btn{
+    width:100%;padding:15px;font-family:'Space Grotesk';font-weight:600;
+    background:var(--discord);color:#fff;border:none;border-radius:11px;
+    cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;gap:11px;
+    transition:filter .2s;
+  }
+  .discord-login-btn:hover{filter:brightness(1.1);}
+  .discord-login-btn svg{width:19px;height:19px;}
+
+  .pay-btn{
+    width:100%;padding:15px;font-family:'Space Grotesk';font-weight:600;
+    background:linear-gradient(135deg, var(--violet), var(--pink));color:#fff;border:none;border-radius:11px;
+    cursor:pointer;font-size:14.5px;display:flex;align-items:center;justify-content:center;gap:10px;
+    transition:transform .15s;
+  }
+  .pay-btn:hover{transform:translateY(-2px);}
+  .pay-btn:disabled{opacity:.55;cursor:not-allowed;transform:none;}
+  .pay-note{font-size:12px;color:var(--text-dim);text-align:center;margin-top:14px;line-height:1.5;}
+
+  .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .toast{
+    position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--panel-solid);border:1px solid var(--border);color:var(--text);
+    padding:13px 20px;border-radius:11px;font-size:13.5px;
+    z-index:200;opacity:0;transition:opacity .3s, transform .3s;pointer-events:none;
+    box-shadow:0 10px 30px -8px rgba(0,0,0,.5);
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  ::-webkit-scrollbar{width:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+
+  @media (max-width: 900px){
+    header{padding:14px 20px;}
+    nav{display:none;}
+    section{padding:70px 6vw;}
+    .hero{padding:60px 20px 44px;min-height:auto;}
+    .test-cta{padding:30px;}
+  }
+
+  @media (max-width: 600px){
+    body{font-size:15px;}
+    header{padding:12px 16px;}
+    .logo{font-size:16px;}
+    .logo .mark{width:26px;height:26px;font-size:12px;}
+    .header-right{gap:6px;}
+    .btn-icon{padding:9px 12px;font-size:13px;}
+    .account-btn{padding:9px 12px;font-size:13px;max-width:130px;}
+
+    .hero{padding:44px 16px 36px;}
+    .eyebrow{font-size:12px;padding:7px 14px;margin-bottom:18px;}
+    .hero p.sub{font-size:16px;margin:20px 0 28px;}
+    .hero-ctas{flex-direction:column;width:100%;gap:10px;}
+    .hero-ctas .btn{width:100%;}
+    .hero-stats{gap:24px;margin-top:44px;}
+    .hero-stats .num{font-size:22px;}
+
+    section{padding:56px 5vw;}
+    .section-head{margin-bottom:34px;}
+
+    .catalog-grid{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;}
+
+    .features{gap:14px;}
+    .feature{padding:24px 20px;}
+
+    .test-cta{flex-direction:column;align-items:flex-start;padding:24px 20px;}
+    .test-cta button{width:100%;}
+
+    footer{padding:26px 5vw;flex-direction:column;text-align:center;}
+
+    .drawer{width:100vw;}
+    .modal-wrap{padding:0;align-items:flex-end;}
+    .modal{
+      width:100%;max-width:100%;border-radius:18px 18px 0 0;
+      max-height:92vh;padding:24px 20px 28px;
+      transform:translateY(100%);
+    }
+    .modal-wrap.show .modal{transform:translateY(0);}
+    .toast{width:calc(100% - 32px);text-align:center;}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001s !important; animation-iteration-count:1 !important; transition-duration:.001s !important;}
+  }
+</style>
+</head>
+<body>
+
+<div class="aurora"></div>
+<div class="grain"></div>
+
+<header>
+  <div class="logo"><span class="mark">D</span> DAGAZ HUB</div>
+  <nav>
+    <a href="#catalogue">Catalogue</a>
+    <a href="#avantages">Avantages</a>
+  </nav>
+  <div class="header-right">
+    <button class="account-btn" id="accountBtn">
+      <svg class="discord-icon" viewBox="0 0 127.14 96.36" fill="currentColor"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>
+      <span id="accountLabel">Discord</span>
+    </button>
+    <button class="btn-icon" id="openCart">
+      Panier <span class="cart-count" id="cartCount">0</span>
+    </button>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="eyebrow"><span class="dot"></span> Terminal marchand en ligne</div>
+    <h1>Achetez le futur</h1>
+    <p class="sub">Des clés d'accès premium, livrées automatiquement sur votre Discord juste après le paiement.</p>
+    <div class="hero-ctas">
+      <button class="btn btn-primary" onclick="document.getElementById('catalogue').scrollIntoView()">Voir les clés</button>
+    </div>
+    <div class="hero-stats">
+      <div><div class="num">99.9%</div><div class="lbl">Disponibilité</div></div>
+      <div><div class="num">256-bit</div><div class="lbl">Chiffrement</div></div>
+      <div><div class="num">12ms</div><div class="lbl">Latence panier</div></div>
+    </div>
+  </section>
+
+  <section id="catalogue">
+    <div class="section-head">
+      <h2>Catalogue</h2>
+      <p>Choisissez la duree de votre cle DAGAZ. Livraison automatique par message prive Discord juste apres le paiement.</p>
+    </div>
+    <div class="catalog-grid" id="catalogGrid"></div>
+  </section>
+
+  <section id="avantages">
+    <div class="section-head">
+      <h2>Pourquoi DAGAZ HUB</h2>
+      <p>Le socle technique est prêt : il ne manque plus que les produits.</p>
+    </div>
+    <div class="features">
+      <div class="feature"><div class="icon-wrap">⚡</div><h3>Livraison rapide</h3><p>Suivi en temps réel dès la mise en ligne des premiers articles.</p></div>
+      <div class="feature"><div class="icon-wrap">🔒</div><h3>Paiement sécurisé</h3><p>Paiement traité par Stripe, réservé aux comptes Discord vérifiés.</p></div>
+      <div class="feature"><div class="icon-wrap">💬</div><h3>Support 24/7</h3><p>Une équipe disponible pour répondre à toute question sur une commande.</p></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div>© 2026 DAGAZ HUB</div>
+  <div>Paiements sécurisés par Stripe · Connexion via Discord</div>
+</footer>
+
+<div class="overlay" id="overlay"></div>
+<aside class="drawer" id="drawer" aria-label="Panier">
+  <div class="drawer-head">
+    <h3>Votre panier</h3>
+    <button class="icon-btn" id="closeCart">✕</button>
+  </div>
+  <div class="drawer-body" id="cartBody"></div>
+  <div class="drawer-foot">
+    <div class="total-row"><span>Total</span><span class="amount" id="cartTotal">0,00 €</span></div>
+    <button class="pay-btn" id="goCheckout" disabled>Passer au paiement</button>
+  </div>
+</aside>
+
+<div class="modal-wrap" id="modalWrap">
+  <div class="modal-bg" id="modalBg"></div>
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<div class="modal-wrap" id="authModalWrap">
+  <div class="modal-bg" id="authModalBg"></div>
+  <div class="modal" id="authModalContent">
+    <h3>Connexion requise</h3>
+    <p class="modal-sub">Connectez-vous avec Discord pour ajouter des articles au panier et pouvoir payer. Votre panier est sauvegardé sur votre compte.</p>
+    <button class="discord-login-btn" id="discordLoginBtn">
+      <svg viewBox="0 0 127.14 96.36" fill="currentColor"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>
+      Continuer avec Discord
+    </button>
+    <div class="field-error" id="authError"></div>
+    <p class="pay-note">Vous serez redirigé vers Discord pour autoriser la connexion, puis ramené automatiquement ici.</p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   CATALOGUE — vrais produits
+   Le prix affiche ici est indicatif : le prix reellement
+   facture est toujours recalcule cote serveur (fonction
+   Stripe) a partir de PRODUCTS_SERVER, jamais depuis ce
+   qu'envoie le navigateur.
+========================================================= */
+const PRODUCTS = [
+  { id:'key-1h', name:'KEY 1H', desc:'Acces valable 1 heure', price:3,  usd:'~$3.30', icon:'⏱' },
+  { id:'key-1j', name:'KEY 1J', desc:'Acces valable 1 jour',  price:12, usd:'~$13', icon:'🗓' },
+  { id:'key-1m', name:'KEY 1 MOIS', desc:'Acces valable 1 mois', price:45, usd:'~$49', icon:'👑' }
+];
+
+const catalogGrid = document.getElementById('catalogGrid');
+PRODUCTS.forEach(function(p, idx){
+  const card = document.createElement('div');
+  card.className = 'product-card' + (idx===2 ? ' featured' : '');
+  card.innerHTML =
+    '<div class="spark">' + p.icon + '</div>' +
+    '<h3>' + p.name + '</h3>' +
+    '<p class="desc">' + p.desc + '</p>' +
+    '<div class="price-row"><span class="price">' + fmt(p.price) + '<span class="usd">' + p.usd + '</span></span></div>' +
+    '<button class="add-btn" data-id="' + p.id + '">Ajouter au panier</button>';
+  catalogGrid.appendChild(card);
+});
+catalogGrid.addEventListener('click', function(e){
+  const btn = e.target.closest('.add-btn');
+  if(!btn) return;
+  const product = PRODUCTS.find(function(p){ return p.id === btn.dataset.id; });
+  if(!product) return;
+  requireAuth(function(){ addToCart(product); });
+});
+
+/* =========================================================
+   PANIER
+========================================================= */
+let CART = [];
+
+const cartCountEl = document.getElementById('cartCount');
+const cartBody = document.getElementById('cartBody');
+const cartTotalEl = document.getElementById('cartTotal');
+const goCheckoutBtn = document.getElementById('goCheckout');
+
+function fmt(n){ return n.toLocaleString('fr-FR',{minimumFractionDigits:2, maximumFractionDigits:2}) + ' €'; }
+
+function renderCart(){
+  let qtySum = 0;
+  CART.forEach(function(i){ qtySum += i.qty; });
+  cartCountEl.textContent = qtySum;
+
+  if(CART.length===0){
+    cartBody.innerHTML = '<div class="empty-cart"><div class="spark">✦</div><div>Votre panier est vide.</div><div style="font-size:12px;margin-top:6px;">Le catalogue n a pas encore de produits.</div></div>';
+    goCheckoutBtn.disabled = true;
+  } else {
+    cartBody.innerHTML = CART.map(function(item){
+      return '<div class="cart-item"><div class="thumb">' + item.icon + '</div><div class="info"><div class="name">' + item.name + (item.qty>1 ? ' × '+item.qty : '') + '</div><div class="price">' + fmt(item.price*item.qty) + '</div></div><button class="rm" data-id="' + item.id + '">✕</button></div>';
+    }).join('');
+    goCheckoutBtn.disabled = false;
+  }
+  let total = 0;
+  CART.forEach(function(i){ total += i.price*i.qty; });
+  cartTotalEl.textContent = fmt(total);
+}
+
+cartBody.addEventListener('click', function(e){
+  const btn = e.target.closest('.rm');
+  if(!btn) return;
+  CART = CART.filter(function(i){ return i.id !== btn.dataset.id; });
+  renderCart();
+  saveCart();
+});
+
+function addToCart(product){
+  const existing = CART.find(function(i){ return i.id===product.id; });
+  if(existing){ existing.qty++; } else { CART.push(Object.assign({}, product, {qty:1})); }
+  renderCart();
+  saveCart();
+  showToast(product.name + ' ajoute au panier');
+}
+
+/* =========================================================
+   COMPTE — connexion via Discord (Supabase Auth OAuth)
+========================================================= */
+const SUPABASE_URL = 'https://fmaofdnljfivqbrtrpsp.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZtYW9mZG5samZpdnFicnRycHNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4OTg1NzUsImV4cCI6MjEwMzQ3NDU3NX0.-fEcYn17yTpV6KzjauCZUbGOrmJdMRPVblzKTEdWrDY';
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let currentUser = null;
+let pendingAction = null;
+
+function saveCart(){
+  if(!currentUser) return;
+  sb.from('carts').upsert({
+    user_id: currentUser.id,
+    items: CART,
+    updated_at: new Date().toISOString()
+  }).then(function(res){
+    if(res.error){ console.error('Erreur de sauvegarde du panier :', res.error); }
+  });
+}
+
+function loadCartForUser(){
+  return sb.from('carts').select('items').eq('user_id', currentUser.id).maybeSingle().then(function(res){
+    if(res.error){ console.error('Erreur de chargement du panier :', res.error); CART = []; }
+    else { CART = (res.data && res.data.items) ? res.data.items : []; }
+    renderCart();
+  });
+}
+
+function discordLabelFor(user){
+  const meta = user.user_metadata || {};
+  return meta.full_name || meta.name || (meta.custom_claims && meta.custom_claims.global_name) || user.email || 'Connecte';
+}
+function discordAvatarFor(user){
+  const meta = user.user_metadata || {};
+  return meta.avatar_url || null;
+}
+
+function updateAccountUI(){
+  const label = document.getElementById('accountLabel');
+  const btn = document.getElementById('accountBtn');
+  if(currentUser){
+    label.textContent = discordLabelFor(currentUser);
+    btn.classList.add('connected');
+    const avatarUrl = discordAvatarFor(currentUser);
+    let img = btn.querySelector('.account-avatar');
+    if(avatarUrl){
+      if(!img){
+        img = document.createElement('img');
+        img.className = 'account-avatar';
+        btn.insertBefore(img, btn.firstChild);
+      }
+      img.src = avatarUrl;
+      const icon = btn.querySelector('.discord-icon');
+      if(icon) icon.style.display = 'none';
+    }
+  } else {
+    label.textContent = 'Discord';
+    btn.classList.remove('connected');
+    const img = btn.querySelector('.account-avatar');
+    if(img) img.remove();
+    const icon = btn.querySelector('.discord-icon');
+    if(icon) icon.style.display = '';
+  }
+}
+
+const authModalWrap = document.getElementById('authModalWrap');
+const authModalBg = document.getElementById('authModalBg');
+
+function openAuthModal(){ authModalWrap.classList.add('show'); }
+function closeAuthModal(){ authModalWrap.classList.remove('show'); pendingAction = null; }
+authModalBg.addEventListener('click', closeAuthModal);
+
+function requireAuth(action){
+  if(currentUser){ action(); return; }
+  pendingAction = action;
+  openAuthModal();
+}
+
+document.getElementById('discordLoginBtn').addEventListener('click', function(){
+  sb.auth.signInWithOAuth({
+    provider: 'discord',
+    options: { redirectTo: window.location.origin + window.location.pathname }
+  }).then(function(res){
+    if(res.error){
+      const errorEl = document.getElementById('authError');
+      errorEl.textContent = res.error.message;
+      errorEl.classList.add('show');
+    }
+  });
+});
+
+function logout(){
+  sb.auth.signOut().then(function(){
+    currentUser = null;
+    CART = [];
+    renderCart();
+    updateAccountUI();
+    closeDrawer();
+    showToast('Deconnecte');
+  });
+}
+
+document.getElementById('accountBtn').addEventListener('click', function(){
+  if(currentUser){ logout(); } else { openAuthModal(); }
+});
+
+sb.auth.getSession().then(function(res){
+  if(res.data.session){
+    currentUser = res.data.session.user;
+    loadCartForUser().then(function(){
+      updateAccountUI();
+      if(pendingAction){ const a = pendingAction; pendingAction = null; a(); }
+    });
+  } else {
+    updateAccountUI();
+  }
+});
+
+sb.auth.onAuthStateChange(function(event, session){
+  if(event === 'SIGNED_IN' && session){
+    currentUser = session.user;
+    loadCartForUser().then(function(){
+      updateAccountUI();
+      closeAuthModal();
+      showToast('Connecte avec Discord');
+      if(pendingAction){ const a = pendingAction; pendingAction = null; a(); }
+    });
+  }
+});
+
+/* =========================================================
+   DRAWER PANIER
+========================================================= */
+const overlay = document.getElementById('overlay');
+const drawer = document.getElementById('drawer');
+function openDrawer(){ overlay.classList.add('show'); drawer.classList.add('show'); }
+function closeDrawer(){ overlay.classList.remove('show'); drawer.classList.remove('show'); }
+document.getElementById('openCart').addEventListener('click', openDrawer);
+document.getElementById('closeCart').addEventListener('click', closeDrawer);
+overlay.addEventListener('click', closeDrawer);
+
+/* =========================================================
+   CHECKOUT — Stripe
+========================================================= */
+const modalWrap = document.getElementById('modalWrap');
+const modalBg = document.getElementById('modalBg');
+const modalContent = document.getElementById('modalContent');
+
+function checkoutSummaryHTML(){
+  let total = 0;
+  CART.forEach(function(i){ total += i.price*i.qty; });
+  const rows = CART.map(function(i){
+    return '<div style="display:flex;justify-content:space-between;font-size:14px;color:var(--text-dim);"><span>' + i.name + (i.qty>1 ? ' × '+i.qty : '') + '</span><span style="color:var(--text)">' + fmt(i.price*i.qty) + '</span></div>';
+  }).join('');
+  return '<h3>Recapitulatif de commande</h3>' +
+    '<p class="modal-sub">Vous allez etre redirige vers une page de paiement securisee Stripe.</p>' +
+    '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">' + rows + '</div>' +
+    '<div class="total-row" style="border-top:1px solid var(--border);padding-top:14px;"><span>Total</span><span class="amount">' + fmt(total) + '</span></div>' +
+    '<button class="pay-btn" id="stripeGo" style="margin-top:18px;">Payer ' + fmt(total) + ' avec Stripe</button>' +
+    '<div class="field-error" id="checkoutError"></div>' +
+    '<p class="pay-note">Paiement 100% securise traite par Stripe. DAGAZ HUB ne stocke ni ne voit jamais votre numero de carte.</p>';
+}
+
+function openCheckout(){
+  if(CART.length===0) return;
+  requireAuth(function(){
+    modalContent.innerHTML = checkoutSummaryHTML();
+    modalWrap.classList.add('show');
+    document.getElementById('stripeGo').addEventListener('click', startStripeCheckout);
+  });
+}
+function closeCheckout(){ modalWrap.classList.remove('show'); }
+goCheckoutBtn.addEventListener('click', function(){ closeDrawer(); openCheckout(); });
+modalBg.addEventListener('click', closeCheckout);
+
+function startStripeCheckout(){
+  const btn = document.getElementById('stripeGo');
+  const errorEl = document.getElementById('checkoutError');
+  errorEl.classList.remove('show');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Redirection en cours...';
+  sb.auth.getSession().then(function(sessRes){
+    const token = sessRes.data.session ? sessRes.data.session.access_token : null;
+    if(!token){ throw new Error('Session expiree, reconnectez-vous.'); }
+    return fetch('/.netlify/functions/create-checkout-session', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({
+        items: CART.map(function(i){ return { id: i.id, qty: i.qty }; })
+      })
+    });
+  }).then(function(res){
+    return res.json().then(function(data){ return { ok: res.ok, data: data }; });
+  }).then(function(result){
+    if(!result.ok || !result.data.url){ throw new Error((result.data && result.data.error) || 'Impossible de creer la session de paiement.'); }
+    window.location.href = result.data.url;
+  }).catch(function(err){
+    errorEl.textContent = err.message;
+    errorEl.classList.add('show');
+    btn.disabled = false;
+    btn.textContent = 'Reessayer';
+  });
+}
+
+(function handleStripeRedirect(){
+  const params = new URLSearchParams(window.location.search);
+  const status = params.get('checkout');
+  if(status === 'success'){
+    CART = [];
+    renderCart();
+    saveCart();
+    showToast('Paiement confirme - votre cle arrive par message prive Discord !');
+  } else if(status === 'cancel'){
+    showToast('Paiement annule');
+  }
+  if(status){
+    params.delete('checkout');
+    const clean = window.location.pathname + (params.toString() ? '?'+params.toString() : '');
+    window.history.replaceState({}, '', clean);
+  }
+})();
+
+/* =========================================================
+   TOAST
+========================================================= */
+const toastEl = document.getElementById('toast');
+let toastTimer;
+function showToast(msg){
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ toastEl.classList.remove('show'); }, 2600);
+}
+</script>
+</body>
+</html>
