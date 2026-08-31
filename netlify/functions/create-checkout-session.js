@@ -40,6 +40,8 @@ exports.handler = async (event) => {
     }
     const user = userData.user;
 
+    // Récupère l'identifiant Discord de l'utilisateur, quel que soit
+    // l'endroit où Supabase l'a range (ça peut varier selon la version).
     const meta = user.user_metadata || {};
     let discordId = meta.provider_id || meta.sub || null;
     if (!discordId && Array.isArray(user.identities)) {
@@ -56,6 +58,7 @@ exports.handler = async (event) => {
       return { statusCode: 400, body: JSON.stringify({ error: 'Le panier est vide.' }) };
     }
 
+    // Construit les lignes Stripe à partir du catalogue serveur uniquement.
     const line_items = [];
     const purchasedIds = [];
     for (const item of items) {

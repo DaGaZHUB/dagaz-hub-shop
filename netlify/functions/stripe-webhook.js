@@ -1,15 +1,22 @@
 // Fonction serveur (Netlify Function) : reçoit la confirmation officielle de
 // Stripe qu'un paiement a bien été effectué (webhook), génère un code
-// d'accès aléatoire, et l'envoie en message privé Discord à l'acheteur.
+// d'accès aléatoire, l'enregistre dans Supabase, et l'envoie en message
+// privé Discord à l'acheteur.
+//
+// C'est volontairement Stripe qui déclenche cette fonction (et non le
+// navigateur du client au moment de la redirection) : un navigateur peut
+// mentir ou se fermer avant la redirection, un webhook Stripe est fiable
+// et ne peut pas être falsifié par le client.
 //
 // Variables d'environnement requises (à définir dans Netlify) :
 //   STRIPE_SECRET_KEY        = sk_test_...
 //   STRIPE_WEBHOOK_SECRET    = whsec_...
-//   DISCORD_BOT_TOKEN        = token du bot Discord
+//   DISCORD_BOT_TOKEN        = token du bot Discord (Developer Portal > Bot)
 //   SUPABASE_URL              = https://xxxx.supabase.co
 //   SUPABASE_SERVICE_ROLE_KEY = clé secrète Supabase
 
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const { createClient } = require('@supabase/supabase-js');
 
 const CODE_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
@@ -97,36 +104,44 @@ exports.handler = async (event) => {
     const lines = deliveries.map((pid) => {
       const label = PRODUCT_LABELS[pid] || pid;
       const code = generateCode();
-      return { label, code };
+      return { label, code, productId: pid };
     });
+
+    // La table delivered_keys est la source de verite utilisee par
+    // redeem-code.js (appelee depuis Roblox) pour valider les codes : cet
+    // enregistrement est indispensable, pas juste une journalisation.
+    // On l'ecrit AVANT d'envoyer le DM pour ne jamais envoyer un code que
+    // le jeu ne pourrait pas reconnaitre en cas d'echec d'ecriture.
+    const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+    const rows = lines.map((l) => ({
+      discord_id: discordId,
+      discord_username: discordUsername,
+      product_label: l.label,
+      product_id: l.productId,
+      code: l.code,
+      redeemed: false,
+      stripe_session_id: session.id,
+    }));
+    const { error: insertError } = await supabaseAdmin.from('delivered_keys').insert(rows);
+    if (insertError) {
+      console.error("Erreur d'enregistrement des codes, DM non envoye :", insertError);
+      return { statusCode: 200, body: JSON.stringify({ error: 'insert failed' }) };
+    }
 
     const messageBody =
       `Merci pour votre achat sur **DAGAZ HUB** !\n\n` +
       lines.map((l) => `**${l.label}**\n\`${l.code}\``).join('\n\n') +
-      `\n\nConservez ce message : ce code ne sera pas renvoye automatiquement.`;
+      `\n\nEntrez ce code dans l'UI "Code" du jeu Roblox pour activer votre acces staff.\n` +
+      `Conservez ce message : ce code ne sera pas renvoye automatiquement.`;
 
     await sendDiscordDM(discordId, messageBody);
 
-    if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      try {
-        const { createClient } = require('@supabase/supabase-js');
-        const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-        const rows = lines.map((l) => ({
-          discord_id: discordId,
-          discord_username: discordUsername,
-          product_label: l.label,
-          code: l.code,
-          stripe_session_id: session.id,
-        }));
-        await supabaseAdmin.from('delivered_keys').insert(rows);
-      } catch (logErr) {
-        console.error('Erreur de journalisation (non bloquante) :', logErr.message);
-      }
-    }
-
     return { statusCode: 200, body: JSON.stringify({ delivered: lines.length }) };
   } catch (err) {
-    console.error('Erreur lors de la livraison Discord :', err.message);
+    console.error('Erreur lors de la livraison :', err.message);
+    // On renvoie quand meme 200 : Stripe considere sinon le webhook en echec
+    // et le retente indefiniment, ce qui enverrait plusieurs fois le code.
+    // L'erreur reste visible dans les logs Netlify pour investigation.
     return { statusCode: 200, body: JSON.stringify({ error: err.message }) };
   }
 };
