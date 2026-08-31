@@ -1,8 +1,0 @@
-{
-  "name": "dagaz-hub-shop",
-  "version": "2.0.0",
-  "private": true,
-  "dependencies": {
-    "stripe": "^17.0.0"
-  }
-}
